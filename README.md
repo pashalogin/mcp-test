@@ -79,6 +79,53 @@ You normally don't run this file directly — MCP clients launch it as a subproc
 
 It will sit waiting for stdio input; press `Ctrl+C` to stop it. This is expected — it's designed to be driven by a client, not used interactively.
 
+### Validate with the MCP Inspector
+
+The [MCP Inspector](https://modelcontextprotocol.io/legacy/tools/inspector) is the standard tool for interactively validating an MCP server, without writing any client code. It requires Node.js (`npx`) — no other setup needed.
+
+#### Option A: Interactive UI
+
+```bash
+npx @modelcontextprotocol/inspector .venv/bin/python my_first_mcp_server.py
+```
+
+This launches the Inspector, starts your server as a subprocess, and opens a web UI (defaults to `http://localhost:6274`) where you can:
+
+- Browse and call **Tools** (e.g. run `say_hello` with `name: "Alice"`)
+- Browse and read **Resources** (e.g. `greeting://Alice`)
+- Browse and run **Prompts** (e.g. `introduce` with `name: "Alice"`)
+- Inspect raw JSON-RPC request/response traffic for debugging
+
+Press `Ctrl+C` in the terminal to stop the Inspector and server when done.
+
+#### Option B: Non-interactive CLI (for scripting/CI)
+
+List available tools:
+
+```bash
+npx @modelcontextprotocol/inspector --cli .venv/bin/python my_first_mcp_server.py --method tools/list
+```
+
+Call the `say_hello` tool directly:
+
+```bash
+npx @modelcontextprotocol/inspector --cli .venv/bin/python my_first_mcp_server.py \
+  --method tools/call --tool-name say_hello --tool-arg name=Alice
+```
+
+Expected output:
+
+```json
+{
+  "content": [
+    { "type": "text", "text": "Hello, Alice!" }
+  ],
+  "isError": false
+}
+```
+
+> To validate the full document-chat server instead, swap the target: `npx @modelcontextprotocol/inspector .venv/bin/python mcp_server.py`.
+
 ## 2. MCP Client — `my_first_mcp_client.py`
 
 A minimal client that launches the server, calls its tool/resource/prompt directly, and prints the results. **No LLM is involved** — good for validating the MCP server plumbing works correctly on its own.
@@ -300,6 +347,7 @@ The original, full-featured app in this repo — [main.py](main.py) — is a doc
 
 ## Validation Checklist (for team review)
 
+- [ ] MCP Inspector connects to `my_first_mcp_server.py` and can list/call the `say_hello` tool
 - [ ] `my_first_mcp_client.py` runs and prints tool/resource/prompt output with no LLM involved
 - [ ] `my_first_llm_app_ollama.py` runs locally with no API key and correctly triggers the `say_hello` tool
 - [ ] `my_first_llm_app_ollama.py` correctly expands `@name` into resource context from `greeting://{name}`
