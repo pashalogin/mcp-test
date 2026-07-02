@@ -150,7 +150,7 @@ It sends the prompt "Say hello to Alice", lets Claude call the tool if it choose
 
 ## 4. LLM App (Local, Free) — `my_first_llm_app_ollama.py`
 
-Same idea as above, but uses a **local model via Ollama** — completely free, no API key, runs on your machine. This is an **interactive chat loop**: it keeps conversation history across turns and calls the MCP tool whenever the model decides to.
+Same idea as above, but uses a **local model via Ollama** — completely free, no API key, runs on your machine. This is an **interactive chat loop**: it keeps conversation history across turns and calls the MCP tool whenever the model decides to. It also supports pulling context from an MCP **resource** into the LLM prompt (see [Resource Context](#resource-context-name) below).
 
 ### One-time setup
 
@@ -210,6 +210,48 @@ sequenceDiagram
     A-->>U: "Assistant: Hello, Alice! ..."
 ```
 
+### Resource Context (`@name`)
+
+In addition to tool calling, the Ollama app can pull an MCP **resource's** content into the LLM prompt as context — separate from the tool-calling loop above. Reference a resource in your chat message with `@name`, and its content (fetched from `greeting://{name}`) is appended to your message before it's sent to the model:
+
+```text
+You: Summarize @Alice in one sentence
+```
+
+is expanded internally to:
+
+```text
+Summarize @Alice in one sentence
+
+Context from MCP resources:
+[Resource greeting://Alice]
+Hello, Alice! This is a resource, not a tool response.
+```
+
+> Note: response quality depends on the model. `qwen2.5:1.5b` sometimes reasons weakly over injected context — try `llama3.2:3b` for more reliable grounding.
+
+#### Sequence diagram (resource context)
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant A as my_first_llm_app_ollama.py
+    participant MC as MCPClient
+    participant S as my_first_mcp_server.py
+    participant M as Local Ollama Model
+
+    U->>A: "Summarize @Alice in one sentence"
+    A->>A: detect @Alice reference
+    A->>MC: read_resource("greeting://Alice")
+    MC->>S: read_resource
+    S-->>MC: "Hello, Alice! ..."
+    MC-->>A: resource content
+    A->>A: append content as context to user message
+    A->>M: chat(messages with enriched context)
+    M-->>A: response grounded in resource content
+    A-->>U: "Assistant: ..."
+```
+
 ---
 
 ## Full Application: MCP Chat
@@ -260,5 +302,6 @@ The original, full-featured app in this repo — [main.py](main.py) — is a doc
 
 - [ ] `my_first_mcp_client.py` runs and prints tool/resource/prompt output with no LLM involved
 - [ ] `my_first_llm_app_ollama.py` runs locally with no API key and correctly triggers the `say_hello` tool
+- [ ] `my_first_llm_app_ollama.py` correctly expands `@name` into resource context from `greeting://{name}`
 - [ ] `my_first_llm_app.py` runs with a valid Anthropic key and correctly triggers the `say_hello` tool
 - [ ] `main.py` runs the full document-chat CLI and can retrieve/summarize documents

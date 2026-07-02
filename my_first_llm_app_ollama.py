@@ -1,4 +1,5 @@
 import asyncio
+import re
 import sys
 
 import ollama
@@ -6,6 +7,8 @@ import ollama
 from mcp_client import MCPClient
 
 OLLAMA_MODEL = "qwen2.5:1.5b"
+
+RESOURCE_REFERENCE_PATTERN = re.compile(r"@(\w+)")
 
 
 def mcp_tools_to_ollama_tools(mcp_tools):
@@ -22,6 +25,24 @@ def mcp_tools_to_ollama_tools(mcp_tools):
     ]
 
 
+async def resolve_resource_references(client: MCPClient, user_input: str) -> str:
+    """Expands @name references into MCP resource content, appended as context."""
+    names = RESOURCE_REFERENCE_PATTERN.findall(user_input)
+    if not names:
+        return user_input
+
+    context_blocks = []
+    for name in names:
+        try:
+            content = await client.read_resource(f"greeting://{name}")
+            context_blocks.append(f"[Resource greeting://{name}]\n{content}")
+        except Exception as e:
+            context_blocks.append(f"[Resource greeting://{name}] Error: {e}")
+
+    context = "\n\n".join(context_blocks)
+    return f"{user_input}\n\nContext from MCP resources:\n{context}"
+
+
 async def main():
     async with MCPClient(
         command=sys.executable,
@@ -33,6 +54,7 @@ async def main():
         messages = []
 
         print("Chat with the local Ollama model (Ctrl+C or 'exit' to quit).")
+        print("Reference a resource with @name, e.g. 'Summarize @Alice'.")
         while True:
             try:
                 user_input = input("You: ").strip()
@@ -44,7 +66,8 @@ async def main():
             if user_input.lower() in ("exit", "quit"):
                 break
 
-            messages.append({"role": "user", "content": user_input})
+            enriched_input = await resolve_resource_references(client, user_input)
+            messages.append({"role": "user", "content": enriched_input})
 
             response = ollama.chat(model=OLLAMA_MODEL, messages=messages, tools=tools)
             messages.append(response.message)
